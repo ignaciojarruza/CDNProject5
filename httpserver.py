@@ -6,27 +6,30 @@ import requests
 
 class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
     """HTTPReplicaRequestHandler subclasses BaseHTTPRequestHandler to serve
-    resources that are on the desired origin."""
+    resources that are on the desired origin. Sends a 404 if origin is not Project 5 orgin cdn."""
     def do_GET(self):
         """Overrides GET requests to add origin cdn functionality."""
-        #Send GET Request to server here
+        #Send GET Request to origin
         path = self.path
         url = 'http://{origin}:8080'.format(origin=self.origin)
         url += path
         file = requests.get(url)
 
-        #TODO: add /grading/breacon check and return 204
+        #/grading/beacon check
+        if path == '/grading/beacon':
+            self.send_response(204)
+            self.end_headers()
+            return
 
-        #Send file response to client here
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
+        #Send Client Response
+        self.send_response(file.status_code)
+        self.send_header(file.headers)
         self.end_headers()
         self.wfile.write(file.content)
     
 def argumentParser():
     """Parses command line arguments."""
     #TODO: add http/https check
-    #TODO: add origin check for Project 5
     parser = argparse.ArgumentParser(description="Project 5 Replica Server Implementation...")
     parser.add_argument('-p', '--port', type=int, help='port HTTP server will bind to')
     parser.add_argument('-o', '--origin', help='origin server of CDN')
@@ -44,7 +47,6 @@ if __name__ == '__main__':
     Handler = HTTPReplicaRequestHandler
     Handler.origin = ORIGIN
     
-
     with socketserver.TCPServer(("", PORT), Handler) as httpd:
         httpd.serve_forever()
 
