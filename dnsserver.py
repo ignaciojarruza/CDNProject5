@@ -9,12 +9,11 @@ class CDN:
 
     def __init__(self, replica ,port):
         """
-        Initializes a CDN object with the list of replica servers specified in the given file
-        and the port on which the CDN will run.
-    
+        Initializes a CDN object with a replica server and port number.
+
         Args:
-            file_path (str): The path to the file containing the list of replica servers.
-            port (int): The port on which the CDN will run.
+        - replica (str): IP address and port number of the replica server
+        - port (int): port number to be used for communication
         """
 
         self.replica = replica
@@ -23,12 +22,14 @@ class CDN:
 
     def get_url(self, url, ip):
         """
-        Sends a request to the specified URL with the given IP address and records the round-trip time.
+        Sends a request to the specified URL with the given IP address and returns the round-trip time (RTT) of the request.
 
         Args:
-            url (str): The URL to send the request to.
-            ip (str): The IP address to include in the request.
-            ips (dict): A dictionary to store the round-trip times for each replica server.
+        - url (str): URL of the endpoint to be queried
+        - ip (str): IP address to be used in the request
+
+        Returns:
+        - rtt (float): Round-trip time of the request in seconds, or None if an error occurs.
         """
 
         query = "http://" + url + ':' + str(self.port) + "/" + ip
@@ -42,20 +43,22 @@ class CDN:
 
     def best_rtt(self, ip):
         """
-        Sends a request to each replica server with the given IP address and returns the URL of the server
-        that had the shortest round-trip time.
+        Returns the IP address of the replica server with the lowest RTT for the given IP address.
 
         Args:
-            ip (str): The IP address to include in the request.
+        - ip (str): IP address to be used in the request
 
         Returns:
-            str: The URL of the replica server with the shortest round-trip time.
+        - replica_ip (str): IP address of the replica server with the lowest RTT, or None if an error occurs.
         """
         rtt = self.get_url(self.replica, ip)
         return self.replica if rtt is None else self.replica.split(':')[0]
 
 
 class DNSQuery:
+    """
+    Represents a DNS query object.
+    """
 
     def __init__(self, data, addr):
         """
@@ -89,7 +92,7 @@ class DNSQuery:
             print (Domain)
 
 
-    def respuesta(self, cdn):
+    def generate_resp_packet(self, cdn):
         """
         Constructs and returns a response packet for the DNS query.
 
@@ -118,7 +121,7 @@ class DNSQuery:
         return packet
     
 
-    def getip(self, data):
+    def get_ip(self, data):
         """
         Retrieves the IP address corresponding to the given domain name from a DNS record file.
 
@@ -126,8 +129,8 @@ class DNSQuery:
             data (str): The domain name for which to retrieve the IP address.
 
         Returns:
-        str: The IP address corresponding to the domain name, if found in the DNS record file. An empty string
-        otherwise.
+            str: The IP address corresponding to the domain name, if found in the DNS record file. An empty string
+            otherwise.
         """
 
         record = open("example.txt",'r').read()
@@ -139,7 +142,7 @@ class DNSQuery:
             return ""
 
 
-def handleQuery(udps, data, add, cdn, name):
+def handle_query(udps, data, add, cdn, name):
     """
     Handles a DNS query by constructing a response and sending it to the client.
         
@@ -153,7 +156,7 @@ def handleQuery(udps, data, add, cdn, name):
     """
     query = DNSQuery(data, add)
     if query.domain == name:
-        reply = query.respuesta(cdn)
+        reply = query.generate_resp_packet(cdn)
         if len(reply) > 0:
             udps.sendto(reply, add)
 
@@ -188,7 +191,7 @@ def main(args):
     while 1:
         try:
             data,add = udps.recvfrom(1024)
-            t = threading.Thread(target = handleQuery, args=(udps, data, add, cdn, name))
+            t = threading.Thread(target = handle_query, args=(udps, data, add, cdn, name))
             t.daemon = True
             t.start()
         except KeyboardInterrupt:
@@ -197,6 +200,6 @@ def main(args):
 
 if __name__ == "__main__":
         if len(sys.argv)!=5:
-            print("Error:Incorrect number of Arguments")
+            print("Error : Incorrect number of arguments")
         else:
             main(sys.argv)
