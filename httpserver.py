@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+
+import argparse
+import socketserver
+import http.server
+from http.server import BaseHTTPRequestHandler
+import requests
+
+class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
+    """HTTPReplicaRequestHandler subclasses BaseHTTPRequestHandler to serve
+    resources that are on the desired origin. Sends a 404 if origin is not Project 5 orgin cdn."""
+    def do_GET(self):
+        """
+        Overrides GET requests to add origin cdn functionality.
+        Handles /grading/beacon by responding with 204.
+        """
+        #Send GET Request to origin
+        path = self.path
+        url = 'http://{origin}:8080'.format(origin=self.origin)
+        url += path
+        file = requests.get(url)
+
+        #/grading/beacon check
+        if path == '/grading/beacon':
+            self.send_response(204)
+            self.end_headers()
+            return
+
+        #Send Client Response; Caching Functionality needs to be added after milestone
+        self.send_response(file.status_code)
+        #self.send_header(file.headers)
+        self.end_headers()
+        self.wfile.write(file.content)
+    
+def argumentParser():
+    """
+    Parses command line arguments.
+    Supports:
+        -p PORT: port to bind http server
+        -o ORIGIN: CDN origin where content is fetched
+    """
+    #TODO: add http/https check
+    parser = argparse.ArgumentParser(description="Project 5 Replica Server Implementation...")
+    parser.add_argument('-p', '--port', type=int, help='port HTTP server will bind to')
+    parser.add_argument('-o', '--origin', help='origin server of CDN')
+    return parser.parse_args()
+
+#2014X group: sukanyanag alloted ports
+if __name__ == '__main__':
+    args = argumentParser()
+    PORT = args.port
+    ORIGIN = args.origin
+
+    Handler = HTTPReplicaRequestHandler
+    Handler.origin = ORIGIN
+    
+    with socketserver.TCPServer(("", PORT), Handler) as httpd:
+        httpd.serve_forever()
+
+
+#Resources
+#1. https://docs.python.org/3/library/http.server.html#http.server.BaseHTTPRequestHandler
+#2. https://docs.python.org/3/library/http.server.html
