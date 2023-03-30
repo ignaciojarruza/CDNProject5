@@ -7,7 +7,7 @@ import sys
 
 class CDN:
 
-    def __init__(self, file_path ,port):
+    def __init__(self, replica ,port):
         """
         Initializes a CDN object with the list of replica servers specified in the given file
         and the port on which the CDN will run.
@@ -17,16 +17,11 @@ class CDN:
             port (int): The port on which the CDN will run.
         """
 
-        self.replicas = []
+        self.replica = replica
         self.port = int(port)
-        with open(file_path) as file:
-            lines = file.readlines()
-            for line in lines:
-                # Only add the line to the replicas list if it contains ".com" and is not an origin server
-                self.replicas.append(line.strip('\r\n'))
 
 
-    def get_url(self, url, ip, ips):
+    def get_url(self, url, ip):
         """
         Sends a request to the specified URL with the given IP address and records the round-trip time.
 
@@ -39,7 +34,7 @@ class CDN:
         query = "http://" + url + ':' + str(self.port) + "/" + ip
         try:
             rtt = urllib.request.urlopen(query).read()
-            ips[float(rtt)] = url
+            return float(rtt)
         except urllib.error.URLError:
             # Ignore URLError exceptions (e.g. server is down)
             pass
@@ -56,19 +51,8 @@ class CDN:
         Returns:
             str: The URL of the replica server with the shortest round-trip time.
         """
-        threads = []
-        ips = {}
-        # Create a thread for each replica server and start them
-        for u in self.replicas:
-            t = threading.Thread(target=self.get_url, args=(u, ip, ips))
-            t.daemon = True
-            t.start()
-            threads.append(t)
-        for t in threads:
-            t.join()
-        s = min(ips.keys())
-        print(ips)
-        return ips[s]
+        rtt = self.get_url(self.replica, ip)
+        return self.replica if rtt is None else self.replica.split(':')[0]
 
 
 class DNSQuery:
@@ -93,32 +77,16 @@ class DNSQuery:
             Domain = []
             while C != b'\x00':
                 N = ord(C)
-                index = index+1
+                index = index + 1
                 indexend = index+N
                 Domain.append(''.join(map(chr, data[index:indexend])))
-                index=indexend
+                index = indexend
                 C = unpack("!c", data[index])[0]
             Domain = '.'.join(Domain)
-            self.Qclass, self.qtype = unpack("!2H", data[index:index+4])
+            self.Qclass, self.qtype = unpack("!2H", data[index:index +4])
             self.domain = Domain
             self.todomainlength = index
             print (Domain)
-
-
-    def checkCdn(self, cdn):
-        """
-        Sends a request to a given CDN object and retrieves the IP address of the replica server with the shortest
-        round-trip time for the current client.
-
-        Args:
-            cdn(CDN): A CDN object that contains a list of replica servers.
-
-        Returns:
-            str: The IP address of the replica server with the shortest round-trip time for the current client.
-        """
-        ip = cdn.best_rtt(self.clientIP)
-        print(ip)
-        return ip
 
 
     def respuesta(self, cdn):
@@ -133,18 +101,18 @@ class DNSQuery:
         """
 
         packet = ''
-        ip = socket.inet_aton(self.checkCdn(cdn))
-        print(ip, len(ip))
-        if len(ip) > 0:
+        ip = cdn.best_rtt(self.clientIP)
+        print(ip)
+        if ip > 0:
             packet += self.data[:2] + "\x81\x80"
             packet += self.data[4:6] + self.data[4:6] + '\x00\x00\x00\x00'  
-            packet += self.data[12:self.todomainlength+5]
+            packet += self.data[12:self.todomainlength + 5]
             packet += '\xc0\x0c'
             packet += '\x00\x01'                                    
             packet += '\x00\x01'                                    
             packet += '\x00\x00\x00\x0F'                                  
             packet += '\x00\x04'                                          
-            packet += ip
+            packet += socket.inet_aton(ip)
         else:
             packet = ''
         return packet
@@ -162,7 +130,7 @@ class DNSQuery:
         otherwise.
         """
 
-        record=open("example.txt",'r').read()
+        record = open("example.txt",'r').read()
         if data in record:
             for line in record.split('\n'):
                 if data == line.split()[0]:
@@ -171,66 +139,63 @@ class DNSQuery:
             return ""
 
 
-    def handleQuery(udps, data, add, cdn, name):
-        """
-        Handles a DNS query by constructing a response and sending it to the client.
+def handleQuery(udps, data, add, cdn, name):
+    """
+    Handles a DNS query by constructing a response and sending it to the client.
         
-        Args:
-            udps (socket.socket): The UDP socket used for sending the response.
-            data (str): The DNS query data.
-            add (tuple): The address of the client making the query.
-            cdn (CDN): The CDN instance used for querying replica servers.
-            name (str): The domain name to be handled.
+    Args:
+        udps (socket.socket): The UDP socket used for sending the response.
+        data (str): The DNS query data.
+        add (tuple): The address of the client making the query.
+        cdn (CDN): The CDN instance used for querying replica servers.
+        name (str): The domain name to be handled.
 
-        """
-        query = DNSQuery(data, add)
-        if query.domain == name:
-            reply = query.respuesta(cdn)
-            if len(reply) > 0:
-                udps.sendto(reply, add)
-
-
-    def main(args):
-        """
-        Main function to start the DNS server.
-
-        Args:
-            args (list): List of command-line arguments.
-
-        """
-
-        port = 0
-        name = ""
-        if args[1] == '-p':
-            port = int(args[2])
-        elif args[3] == '-p':
-            port = int(args[4])
-        if args[1] == '-n':
-            name = args[2]
-        elif args[3] == '-n':
-            name = args[4]
+    """
+    query = DNSQuery(data, add)
+    if query.domain == name:
+        reply = query.respuesta(cdn)
+        if len(reply) > 0:
+            udps.sendto(reply, add)
 
 
-        udps = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udps.bind(("", port))
-        file = "testme.txt"
-        if port == 65535:
-            rttPort = 65534
-        else:
-            rttPort = port + 1
-        cdn =  CDN(file,rttPort)
-        print ("reaching here")
+def main(args):
+    """
+    Main function to start the DNS server.
 
-        while 1:
-            try:
-                data,add = udps.recvfrom(1024)
-                t = threading.Thread(target = handleQuery, args=(udps, data, add, cdn, name))
-                t.daemon = True
-                t.start()
-            except KeyboardInterrupt:
-                break
+    Args:
+        args (list): List of command-line arguments.
 
-    if __name__ == "__main__":
+    """
+
+    port = 0
+    name = ""
+    if args[1] == '-p':
+        port = int(args[2])
+    elif args[3] == '-p':
+        port = int(args[4])
+    if args[1] == '-n':
+        name = args[2]
+    elif args[3] == '-n':
+        name = args[4]
+
+    udps = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udps.bind(("", port))
+
+    replica = "cdn-dns.5700.network:8080"
+    cdn = CDN(replica, port + 1)
+    print ("reaching here")
+
+    while 1:
+        try:
+            data,add = udps.recvfrom(1024)
+            t = threading.Thread(target = handleQuery, args=(udps, data, add, cdn, name))
+            t.daemon = True
+            t.start()
+        except KeyboardInterrupt:
+            break
+    udps.close()
+
+if __name__ == "__main__":
         if len(sys.argv)!=5:
             print("Error:Incorrect number of Arguments")
         else:
