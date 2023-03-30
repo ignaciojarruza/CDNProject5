@@ -26,7 +26,7 @@ class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
 
         #Send Client Response; Caching Functionality needs to be added after milestone
         self.send_response(file.status_code)
-        self.send_header(file.headers)
+        #self.send_header(file.headers)
         self.end_headers()
         self.wfile.write(file.content)
     
