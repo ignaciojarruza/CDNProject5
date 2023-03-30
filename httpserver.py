@@ -13,7 +13,6 @@ class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
         path = self.path
         url = 'http://{origin}:8080'.format(origin=self.origin)
         url += path
-        print(url)
         file = requests.get(url)
 
         #TODO: add /grading/breacon check and return 204
