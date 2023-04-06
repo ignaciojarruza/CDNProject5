@@ -7,52 +7,62 @@ import sys
 
 class CDN:
 
-    def __init__(self, replica ,port):
+    def __init__(self, file_path ,port):
         """
-        Initializes a CDN object with a replica server and port number.
+        Initializes a CDN object with the list of replica servers specified in the given file
+        and the port on which the CDN will run.
 
         Args:
-        - replica (str): IP address and port number of the replica server
-        - port (int): port number to be used for communication
+            file_path (str): The path to the file containing the list of replica servers.
+            port (int): The port on which the CDN will run.
         """
-
-        self.replica = replica
+        self.replicas = []
         self.port = int(port)
+        with open(file_path) as file_path:
+            lines = file_path.readlines()
+            for line in lines:
+                # Only add the line to the replicas list if it contains ".com" and is not an origin server
+                if ".com" in line and "Origin" not in line:
+                    self.replicas.append(socket.gethostbyname(line.strip('\r\n')))
+            
 
-
-    def get_url(self, url, ip):
+    def get_url(self, url, ip, ips):
         """
-        Sends a request to the specified URL with the given IP address and returns the round-trip time (RTT) of the request.
+        Sends a request to the specified URL with the given IP address and records the round-trip time.
 
         Args:
-        - url (str): URL of the endpoint to be queried
-        - ip (str): IP address to be used in the request
-
-        Returns:
-        - rtt (float): Round-trip time of the request in seconds, or None if an error occurs.
+            url (str): The URL to send the request to.
+            ip (str): The IP address to include in the request.
+            ips (dict): A dictionary to store the round-trip times for each replica server.
         """
-
-        query = "http://" + url + ':' + str(self.port) + "/" + ip
-        try:
-            rtt = urllib.request.urlopen(query).read()
-            return float(rtt)
-        except urllib.error.URLError:
-            # Ignore URLError exceptions (e.g. server is down)
-            pass
+    
+        query = "http://" + ip + ":" + str(self.port) + "/" + self.clientIP
+        rtt = urllib.request.urlopen(query).read()
+        ips[float(rtt)] = ip
 
 
     def best_rtt(self, ip):
         """
-        Returns the IP address of the replica server with the lowest RTT for the given IP address.
+        Sends a request to each replica server with the given IP address and returns the URL of the server
+        that had the shortest round-trip time.
 
         Args:
-        - ip (str): IP address to be used in the request
+            ip (str): The IP address to include in the request.
 
         Returns:
-        - replica_ip (str): IP address of the replica server with the lowest RTT, or None if an error occurs.
+            str: The URL of the replica server with the shortest round-trip time.
         """
-        rtt = self.get_url(self.replica, ip)
-        return self.replica if rtt is None else self.replica.split(':')[0]
+        threads = []
+        ips = {}
+        for u in self.replicas:
+            t = threading.Thread(target=self.get_url, args=(u, ips))
+            t.daemon = True
+            t.start()
+            threads.append(t)
+        for t in threads:
+            t.join()
+        s = min(ips.keys())
+        return ips[s]
 
 
 class DNSQuery:
@@ -81,7 +91,7 @@ class DNSQuery:
             while C != b'\x00':
                 N = ord(C)
                 index = index + 1
-                indexend = index+N
+                indexend = index + N
                 Domain.append(''.join(map(chr, data[index:indexend])))
                 index = indexend
                 C = unpack("!c", data[index])[0]
@@ -90,6 +100,22 @@ class DNSQuery:
             self.domain = Domain
             self.todomainlength = index
             print (Domain)
+
+
+    def check_cdn(self, cdn):
+        """
+        Sends a request to a given CDN object and retrieves the IP address of the replica server with the shortest
+        round-trip time for the current client.
+
+        Args:
+            cdn (CDN): A CDN object that contains a list of replica servers.
+
+        Returns:
+            str: The IP address of the replica server with the shortest round-trip time for the current client.
+        """
+        ip = cdn.best_rtt(self.clientIP)
+        print(ip)
+        return ip
 
 
     def generate_resp_packet(self, cdn):
@@ -104,18 +130,19 @@ class DNSQuery:
         """
 
         packet = ''
-        ip = cdn.best_rtt(self.clientIP)
-        print(ip)
-        if ip > 0:
+        ip = socket.inet_aton(self.check_cdn(cdn))
+        print(ip, len(ip))
+        if len(ip) > 0:
             packet += self.data[:2] + "\x81\x80"
-            packet += self.data[4:6] + self.data[4:6] + '\x00\x00\x00\x00'  
-            packet += self.data[12:self.todomainlength + 5]
-            packet += '\xc0\x0c'
-            packet += '\x00\x01'                                    
-            packet += '\x00\x01'                                    
-            packet += '\x00\x00\x00\x0F'                                  
-            packet += '\x00\x04'                                          
-            packet += socket.inet_aton(ip)
+            packet += self.data[4:6] + self.data[4:6] + '\x00\x00\x00\x00'
+            packet += self.data[12:self.todomainlength+5]                     
+            packet += '\xc0\x0c'                                           
+            packet += '\x00\x01'               
+            packet += '\x00\x01'                                 
+            packet += '\x00\x00\x00\x0F'  
+            packet += '\x00\x04'                                        
+            #packet+= pack('!H',len(ip))
+            packet += ip
         else:
             packet = ''
         return packet
@@ -184,8 +211,13 @@ def main(args):
     udps = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udps.bind(("", port))
 
-    replica = "cdn-dns.5700.network:8080"
-    cdn = CDN(replica, port + 1)
+    file="testme.txt"
+    if port == 20140:
+        rttPort = 20139
+    else:
+        rttPort = port + 1
+    cdn =  CDN(file, rttPort)
+
     print ("reaching here")
 
     while 1:
