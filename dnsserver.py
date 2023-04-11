@@ -3,8 +3,10 @@
 import argparse
 import socket
 import dnslib
+from ping3 import ping
 
 class DNSServer():
+
     def __init__(self, port, name):
         '''
         DNSServer constructor. Initializes object and creates UDP Socket for communcation.
@@ -43,8 +45,32 @@ class DNSServer():
         return valid
     
     def replicaIP(self, request):
-        #TODO: dynamically return IP
-        return '54.169.255.101'
+
+        replica_domains = ['cdn-http1.5700.network', 'cdn-http2.5700.network', 'cdn-http3.5700.network',
+                           'cdn-http4.5700.network', 'cdn-http5.5700.network', 'cdn-http6.5700.network', 
+                           'cdn-http7.5700.network']
+
+        best_ip = None
+        best_rtt = float('inf')
+
+        # Resolve the domain names to their corresponding IP addresses
+        for domain in replica_domains:
+            try:
+                addrinfo = socket.getaddrinfo(domain, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
+                ip = addrinfo[0][4][0]
+            except socket.gaierror:
+                continue
+
+            # Ping each replica server and select the one with the lowest RTT
+            try:
+                rtt = ping(ip, timeout=1, unit='ms')
+                if rtt and rtt < best_rtt:
+                    best_rtt = rtt
+                    best_ip = ip
+            except Exception:
+                continue
+
+        return best_ip
     
     def sendDNSResponse(self, request, address, replicaIP):
         '''
