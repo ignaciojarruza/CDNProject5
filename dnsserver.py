@@ -1,12 +1,30 @@
 #!/usr/bin/env python3
 
 import argparse
-class DNSServer():
-    #TODO: add handling DNS requests
+import socket
+import dnslib
 
-    def serve_forever():
-       #while True:
-        return "Serving forever."
+class DNSServer():
+    def __init__(self, port, name):
+        self.port = port
+        self.name = name
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.socket.bind(port, name)
+    
+    def readDNSRequest(self, request):
+        message = dnslib.DNSRecord.parse(request)
+        domainRequested = str(message.q.qname)
+        ip = self.socket.gethostbyname(domainRequested)
+        return ip
+
+    def serve_forever(self):
+        while True:
+            data, address = self.socket.recvfrom(1024)
+            ipDomain = self.readDNSRequest(data)
+
+        #return "Serving forever."
+    
+        
 
 def argumentParser():
     '''
@@ -25,3 +43,13 @@ if __name__ == '__main__':
     args = argumentParser()
     PORT = args.port
     NAME = args.name
+
+    dns = DNSServer(PORT, NAME)
+
+#Resources:
+#1. https://pythontic.com/modules/socket/gethostbyname
+#2. https://pypi.org/project/dnslib/
+#3. https://stackoverflow.com/questions/16977588/reading-dns-packets-in-python
+
+
+
