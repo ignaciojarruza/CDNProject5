@@ -6,25 +6,73 @@ import dnslib
 
 class DNSServer():
     def __init__(self, port, name):
+        '''
+        DNSServer constructor. Initializes object and creates UDP Socket for communcation.
+        Parameters:
+            port: port to bind CDN server
+            name: CDN-specific name that your server translates to an IP
+        '''
         self.port = port
         self.name = name
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.socket.bind(port, name)
-    
-    def readDNSRequest(self, request):
+        self.hostIP = socket.gethostbyname(socket.gethostname())
+        self.socket.bind((self.hostIP, port))
+        print("ip of host: {ip}".format(ip=self.hostIP))
+
+    def isDNSRequestValid(self, request):
+        '''
+        Checks the validity of the DNS request.
+        Validity is defined as (1) having domain requested be the same as the DNS instantiation domain
+        and (2) being a request of type A.
+        Parameters:
+            request: DNS request
+        Returns:
+            valid: boolean value for validity of DNS request
+        '''
+        #Domain Name Check
         message = dnslib.DNSRecord.parse(request)
         domainRequested = str(message.q.qname)
-        ip = self.socket.gethostbyname(domainRequested)
-        return ip
+        valid = True
+        if domainRequested != "{name}.".format(name=self.name):
+            valid = False
+
+        #Query Type Check
+        if message.q.qtype != dnslib.QTYPE.A:
+            valid = False
+        
+        return valid
+    
+    def replicaIP(self, request):
+        #TODO: dynamically return IP
+        return '54.169.255.101'
+    
+    def sendDNSResponse(self, request, address, replicaIP):
+        '''
+        Sends appropriate DNS response to client.
+        Parameters:
+            request: DNS Request that client sent
+            address: Address of client in (ip, port) tuple
+            replicaIP: IP of replica http server to redirect client
+        '''
+        parsedRequest = dnslib.DNSRecord.parse(request)
+        response = parsedRequest.reply()
+        response.add_answer(dnslib.RR(rname=address[0], ttl=45, rdata=dnslib.A(replicaIP)))
+        self.socket.sendto(response.pack(), address)
 
     def serve_forever(self):
+        """
+        Runs the DNS server indefinitely. DNS server will listen
+        for DNS queries and only respond when conditions are appropriate.
+        Only responds for A type queries.
+        """
         while True:
-            data, address = self.socket.recvfrom(1024)
-            ipDomain = self.readDNSRequest(data)
+            request, address = self.socket.recvfrom(1024)
+            if self.isDNSRequestValid(request) == False:
+                continue
 
-        #return "Serving forever."
-    
-        
+            #Craft and send response
+            replicaIP = self.replicaIP(request)
+            self.sendDNSResponse(request, address, replicaIP)
 
 def argumentParser():
     '''
@@ -40,11 +88,15 @@ def argumentParser():
 
 #2014X sukanyanag group supported ports
 if __name__ == '__main__':
+    '''
+    Main method. Handles Command Line Arguments and creates/runs DNS object.
+    '''
     args = argumentParser()
     PORT = args.port
     NAME = args.name
 
     dns = DNSServer(PORT, NAME)
+    dns.serve_forever()
 
 #Resources:
 #1. https://pythontic.com/modules/socket/gethostbyname

@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+
+import argparse
+import socket
+import dnslib
+
+class DNSServer():
+    def __init__(self, port, name):
+        self.port = port
+        self.name = name
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.hostIP = socket.gethostbyname(socket.gethostname())
+        self.socket.bind((self.hostIP, port))
+        print("ip of host: {ip}".format(ip=self.hostIP))
+    
+    def readDNSRequest(self, request):
+        message = dnslib.DNSRecord.parse(request)
+        domainRequested = str(message.q.qname)
+        print(domainRequested)
+        ip = socket.gethostbyname(domainRequested)
+        print("Q TYPE")
+        print(message.q)
+        return ip
+
+    def serve_forever(self):
+        while True:
+            data, address = self.socket.recvfrom(1024)
+            ipDomain = self.readDNSRequest(data)
+            print("ip: {ipDomain}".format(ipDomain) )
+            print("address where request came from: {address}".format(address))
+        #return "Serving forever."
+    
+        
+
+def argumentParser():
+    '''
+    Parses command line arguments.
+    Supports:
+        -p PORT: port to bind CDN server
+        -n NAME: CDN-specific name that your server translates to an IP
+    '''
+    parser = argparse.ArgumentParser(description='Project 5 DNS Server Implementation...')
+    parser.add_argument('-p', '--port', type=int, help='port DNS server will bind to')
+    parser.add_argument('-n', '--name', help='name that you server translates to IP')
+    return parser.parse_args()
+
+#2014X sukanyanag group supported ports
+if __name__ == '__main__':
+    args = argumentParser()
+    PORT = args.port
+    NAME = args.name
+
+    dns = DNSServer(PORT, NAME)
+    dns.serve_forever()
+
+#Resources:
+#1. https://pythontic.com/modules/socket/gethostbyname
+#2. https://pypi.org/project/dnslib/
+#3. https://stackoverflow.com/questions/16977588/reading-dns-packets-in-python
+
+
+
