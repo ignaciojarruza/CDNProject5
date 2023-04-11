@@ -63,7 +63,8 @@ class DNSServer():
         """
         Runs the DNS server indefinitely. DNS server will listen
         for DNS queries and only respond when conditions are appropriate.
-        Only responds for A type queries.
+        Only responds for A type queries and when domain requested is the same as the DNS
+        server creation name passed through the command line.
         """
         while True:
             request, address = self.socket.recvfrom(1024)
