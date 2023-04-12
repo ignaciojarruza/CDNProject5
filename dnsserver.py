@@ -3,7 +3,7 @@
 import argparse
 import socket
 import dnslib
-from ping3 import ping
+import time
 
 class DNSServer():
 
@@ -59,15 +59,21 @@ class DNSServer():
                 addrinfo = socket.getaddrinfo(domain, None, family=socket.AF_INET, type=socket.SOCK_STREAM)
                 ip = addrinfo[0][4][0]
             except socket.gaierror:
-                continue
+                continue            
 
-            # Ping each replica server and select the one with the lowest RTT
+            # Measure the RTT by sending TCP SYN packets
+            start_time = time.time()
             try:
-                rtt = ping(ip, timeout=1, unit='ms')
+                tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                tcp_socket.settimeout(1)
+                tcp_socket.connect((ip, 20140))
+                tcp_socket.close()
+                rtt = (time.time() - start_time) * 1000
+
                 if rtt and rtt < best_rtt:
                     best_rtt = rtt
                     best_ip = ip
-            except Exception:
+            except (socket.timeout, socket.error):
                 continue
 
         return best_ip
@@ -94,6 +100,7 @@ class DNSServer():
         """
         while True:
             request, address = self.socket.recvfrom(1024)
+            print(f"Received request from {address}: {request}")
             if self.isDNSRequestValid(request) == False:
                 continue
 
