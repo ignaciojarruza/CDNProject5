@@ -45,6 +45,18 @@ class DNSServer():
         return valid
     
     def replicaIP(self, request):
+        """
+        Determines the IP address of the replica server with the lowest Round Trip Time (RTT).
+        This method resolves the domain names of the available replica servers, pings each server,
+        and selects the one with the lowest RTT. If a server is unreachable or its domain cannot
+        be resolved, it is skipped.
+
+        Parameters:
+            request: DNS request
+
+        Returns:
+            str: IP address of the replica server with the lowest RTT, or None if none of the servers can be reached
+        """
 
         replica_domains = ['cdn-http1.5700.network', 'cdn-http2.5700.network', 'cdn-http3.5700.network',
                            'cdn-http4.5700.network', 'cdn-http5.5700.network', 'cdn-http6.5700.network', 
