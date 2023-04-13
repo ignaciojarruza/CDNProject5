@@ -243,7 +243,8 @@ import argparse
 import socket
 import dnslib
 import time
-
+import geoip2.database
+from geopy.distance import geodesic
 class DNSServer():
 
     def __init__(self, port, name):
@@ -258,7 +259,19 @@ class DNSServer():
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.hostIP = socket.gethostbyname(socket.gethostname())
         self.socket.bind((self.hostIP, port))
-        print("ip of host: {ip}".format(ip=self.hostIP))
+
+        #Save Replica IPs and long/lat values for faster lookups
+        self.replicaIPs = {}
+        self.replicaLongLats = {}
+        replica_domains = ['cdn-http1.5700.network', 'cdn-http2.5700.network', 'cdn-http3.5700.network',
+                           'cdn-http4.5700.network', 'cdn-http5.5700.network', 'cdn-http6.5700.network', 
+                           'cdn-http7.5700.network']
+        for replica in replica_domains:
+            self.replicaIPs[replica] = socket.gethostbyname(replica)
+            for replica in self.replicaIPs:
+                self.geoReader = geoip2.database.Reader('GeoLite2-City.mmdb')
+                geoData = self.geoReader.city(self.replicaIPs[replica])
+                self.replicaLongLats[replica] = (geoData.location.longitude, geoData.location.latitude)          
 
     def isDNSRequestValid(self, request):
         '''
@@ -283,7 +296,28 @@ class DNSServer():
         
         return valid
     
-    def replicaIP(self, request):
+    def bestReplicaGeo(self, address):
+        #Find longitude and latitude for client IP
+        geoData = self.geoReader.city(address[0])
+
+        #TODO: Compare distances and pick closest replica server
+        closestIP = None
+        closestDistance = float('inf')
+        for replica in self.replicaIPs:
+            httpReplicaCoordinates = self.replicaLongLats[replica]
+            clientCoordinates = (geoData.location.longitude, geoData.location.latitude)
+            distance = geodesic(httpReplicaCoordinates, clientCoordinates).km
+            if distance and distance < closestDistance:
+                closestDistance = distance
+                closestIP = replica
+        return closestIP
+
+
+        
+
+        return
+    
+    def bestReplicaRTT(self, request):
         """
         Determines the IP address of the replica server with the lowest Round Trip Time (RTT).
         This method resolves the domain names of the available replica servers, pings each server,
@@ -356,7 +390,8 @@ class DNSServer():
                 continue
 
             #Craft and send response
-            replicaIP = self.replicaIP(request)
+            #replicaIP = self.bestReplicaRTT(request)
+            replicaIP = self.bestReplicaGeo(address)
             self.sendDNSResponse(request, address, replicaIP)
 
 def argumentParser():
@@ -387,6 +422,9 @@ if __name__ == '__main__':
 #1. https://pythontic.com/modules/socket/gethostbyname
 #2. https://pypi.org/project/dnslib/
 #3. https://stackoverflow.com/questions/16977588/reading-dns-packets-in-python
+#4. https://geoip2.readthedocs.io/en/latest/
+#5. https://www.youtube.com/watch?v=ccvMfdlArbI
+
 
 
 

@@ -157,8 +157,8 @@ class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
         """
 
         """
-        #Send GET Request to origin
         path = self.path
+<<<<<<< HEAD:httpserver.py
         url = 'http://{origin}:8080'.format(origin=self.origin)
         url += path
         file = requests.get(url)
@@ -167,10 +167,14 @@ class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
         #/grading/beacon check
         #TODO: make get request to origin server and see result, might just return that instead of custom 204 response
         if self.path == '/grading/beacon':
+=======
+        if path == '/grading/beacon':
+>>>>>>> ef08f166fe6b866d76c82517af5c6f37d33dfb26:httpserver
             self.send_response(204)
             self.end_headers()
             return
         
+<<<<<<< HEAD:httpserver.py
         # Check if content is in the cache
         html = self.cache.get_data(self.path)
 
@@ -180,6 +184,12 @@ class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
             file = requests.get(url)
             html = file.content
             self.cache.insert_data(self.path, html)
+=======
+        #Send GET Request to origin
+        url = 'http://{origin}:8080'.format(origin=self.origin)
+        url += path
+        file = requests.get(url)
+>>>>>>> ef08f166fe6b866d76c82517af5c6f37d33dfb26:httpserver
 
         """
         #Send Client Response; Caching Functionality needs to be added after milestone

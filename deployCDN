@@ -28,3 +28,6 @@ done
 dns_server="cdn-dns.5700.network"
 scp -i $keyfile dnsserver $username@$dns_server:~/
 ssh -i $keyfile $username@$dns_server chmod u+x dnsserver
+ssh -i $keyfile $username@$dns_server pip3 install maxminddb-geolite2
+ssh -i $keyfile $username@$dns_server pip3 install geopy
+

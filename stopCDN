@@ -21,8 +21,8 @@ servers_length=${#replica_servers[@]}
  
 for (( i = 0; i < ${servers_length}; i++ ));
 do
-    ssh -i "$keyfile" "$username@${replica_servers[$i]}" "killall -u $username python3"
+    ssh -i "$keyfile" "$username@${replica_servers[$i]}" "killall -u $username"
 done
 
 dns_server="cdn-dns.5700.network"
-ssh -i "$keyfile" "$username@$dns_server" "killall -u $username python3"
+ssh -i "$keyfile" "$username@$dns_server" "killall -u $username"
