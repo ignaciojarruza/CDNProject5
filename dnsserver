@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-python3 dnsserver.py $1 $2 $3 $4
-=======
 #!/usr/bin/env python3
 
 import argparse
@@ -9,6 +6,7 @@ import dnslib
 import time
 from geolite2 import geolite2
 from geopy.distance import geodesic
+
 class DNSServer():
 
     def __init__(self, port, name):
@@ -213,4 +211,3 @@ if __name__ == '__main__':
 
 
 
->>>>>>> ef08f166fe6b866d76c82517af5c6f37d33dfb26

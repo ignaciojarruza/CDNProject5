@@ -31,6 +31,7 @@ class Cache:
         self.handler = self.connection.cursor()
         self.handler.execute('''CREATE TABLE IF NOT EXISTS CACHE (Path TEXT, Content BLOB, Frequency INT, Size INT);''')
 
+
     def hit(self, data):
         """
         Checks if the given data is a cache hit.
@@ -43,6 +44,7 @@ class Cache:
         """
 
         return data is not None
+
 
     def get_data(self, path):
         """
@@ -68,6 +70,7 @@ class Cache:
 
         return None
 
+
     def close(self):
         """
         Closes the SQLite connection and commits any changes.
@@ -75,6 +78,7 @@ class Cache:
 
         self.connection.commit()
         self.connection.close()
+
 
     def get_cache_size(self):
         """
@@ -87,6 +91,7 @@ class Cache:
         cache_stat = os.stat('cache.db')
         cache_size = cache_stat.st_size
         return cache_size
+
 
     def over_size(self, data):
         """
@@ -157,8 +162,8 @@ class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
         """
 
         """
+        #Send GET Request to origin
         path = self.path
-<<<<<<< HEAD:httpserver.py
         url = 'http://{origin}:8080'.format(origin=self.origin)
         url += path
         file = requests.get(url)
@@ -167,14 +172,10 @@ class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
         #/grading/beacon check
         #TODO: make get request to origin server and see result, might just return that instead of custom 204 response
         if self.path == '/grading/beacon':
-=======
-        if path == '/grading/beacon':
->>>>>>> ef08f166fe6b866d76c82517af5c6f37d33dfb26:httpserver
             self.send_response(204)
             self.end_headers()
             return
         
-<<<<<<< HEAD:httpserver.py
         # Check if content is in the cache
         html = self.cache.get_data(self.path)
 
@@ -184,12 +185,6 @@ class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
             file = requests.get(url)
             html = file.content
             self.cache.insert_data(self.path, html)
-=======
-        #Send GET Request to origin
-        url = 'http://{origin}:8080'.format(origin=self.origin)
-        url += path
-        file = requests.get(url)
->>>>>>> ef08f166fe6b866d76c82517af5c6f37d33dfb26:httpserver
 
         """
         #Send Client Response; Caching Functionality needs to be added after milestone
