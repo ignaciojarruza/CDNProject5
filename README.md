@@ -26,8 +26,21 @@ The HTTP Server utilizes a TCPServer socketserver that is set to serve forever w
 Testing for the http servers involved sending hundreds of GET requests in sequence to one server at a time and making sure that all requests were met.
 The resources, documentation for http.server and BaseHTTPRequestHandler
 
-# Work Distribution
+# Design Decisions
+Some of the design decisions we took in order to finalize this project include:
+(1) Having two methods of dynamically selecting IP in the case that one fails. We recognized that there were some cases that could be out of our control when introducing the geolite2 module. For example, an IP could not be located in the database or our access is slowed because of too many subsequent requests. To combat this, we use the RTT algorithm as a backup to any geolite2 errors that can show up in the process.
+We added geo location after testing the performance of the RTT and realizing that there was room for improvement.
+(2) Overloading the HTTP Handler in the replica servers in order to add custom behavior when receiving GET requests. This allowed us to introduce caching functionality within GET requests.
+(3) Caching through [add more detail here]
 
+# Challenges Faced
+We had numerous challenges throughout implementation, the most notable ones were:
+(1) RTT did not perform as well as we hoped. This was mostly due to the inherent bias that geographic location has in network congestion and network latency. We solved this by introducing the alternative geo location IP algorithm.
+(2) Our scripts needed a little bit of tweaking to get the correct modules downloaded while deploying.
+(3) We faced an issue in getting the DNS server to correctly receive DNS A requests and had to reimplement the dns server from scratch. This is why we could not hand in the milestone in time.
+(4) Geopy distance calculations were resulting in errors sometimes because they utilize a (latitude, longitude) point schema while I was using (longitude, latitude)
+
+# Work Distribution
 HTTPServer: Ignacio Arruza
 DNSServer: Ignacio Arruza
 Testing DNS and HTTP servers: Ignacio
