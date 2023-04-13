@@ -14,18 +14,16 @@ class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
         Overrides GET requests to add origin cdn functionality.
         Handles /grading/beacon by responding with 204.
         """
-        #Send GET Request to origin
         path = self.path
-        url = 'http://{origin}:8080'.format(origin=self.origin)
-        url += path
-        file = requests.get(url)
-
-        #/grading/beacon check
-        #TODO: make get request to origin server and see result, might just return that instead of custom 204 response
         if path == '/grading/beacon':
             self.send_response(204)
             self.end_headers()
             return
+        
+        #Send GET Request to origin
+        url = 'http://{origin}:8080'.format(origin=self.origin)
+        url += path
+        file = requests.get(url)
 
         #Send Client Response; Caching Functionality needs to be added after milestone
         self.send_response(file.status_code)

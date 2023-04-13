@@ -4,7 +4,7 @@ import argparse
 import socket
 import dnslib
 import time
-from geolite2 import geolite2
+import geoip2.database
 from geopy.distance import geodesic
 class DNSServer():
 
@@ -20,7 +20,6 @@ class DNSServer():
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.hostIP = socket.gethostbyname(socket.gethostname())
         self.socket.bind((self.hostIP, port))
-        self.closestReplica = {}
 
         #Save Replica IPs and long/lat values for faster lookups
         self.replicaIPs = {}
@@ -31,12 +30,9 @@ class DNSServer():
         for replica in replica_domains:
             self.replicaIPs[replica] = socket.gethostbyname(replica)
             for replica in self.replicaIPs:
-                geoReader = geolite2.reader()
-                geoData = geoReader.get(self.replicaIPs[replica])
-                self.replicaLongLats[replica] = (geoData['location']['latitude'], geoData['location']['longitude'])  
-        
-        
-                 
+                self.geoReader = geoip2.database.Reader('GeoLite2-City.mmdb')
+                geoData = self.geoReader.city(self.replicaIPs[replica])
+                self.replicaLongLats[replica] = (geoData.location.longitude, geoData.location.latitude)          
 
     def isDNSRequestValid(self, request):
         '''
@@ -62,37 +58,27 @@ class DNSServer():
         return valid
     
     def bestReplicaGeo(self, address):
-        '''
-        Dynamically selects the closest replica server to the passed in address.
-        This dynamic selection calculates the distances between the client and all
-        the replica servers and chooses the closest one.
-        Parameters:
-            address: the ip address of the client
-        Returns:
-            closestIP: the ip address of the closest geographical replica
-        '''
-        #Check if ip is already learned
-        if address[0] in self.closestReplica:
-            return self.closestReplica[address[0]]
-
         #Find longitude and latitude for client IP
-        geoReader = geolite2.reader()
-        geoData = geoReader.get(address[0])
+        geoData = self.geoReader.city(address[0])
 
-        #Compare distances and pick closest replica server
+        #TODO: Compare distances and pick closest replica server
         closestIP = None
         closestDistance = float('inf')
         for replica in self.replicaIPs:
             httpReplicaCoordinates = self.replicaLongLats[replica]
-            clientCoordinates = (geoData['location']['latitude'], geoData['location']['longitude'])
+            clientCoordinates = (geoData.location.longitude, geoData.location.latitude)
             distance = geodesic(httpReplicaCoordinates, clientCoordinates).km
             if distance and distance < closestDistance:
                 closestDistance = distance
-                closestIP = self.replicaIPs[replica]
-        self.closestReplica[address[0]] = closestIP
+                closestIP = replica
         return closestIP
+
+
+        
+
+        return
     
-    def bestReplicaRTT(self):
+    def bestReplicaRTT(self, request):
         """
         Determines the IP address of the replica server with the lowest Round Trip Time (RTT).
         This method resolves the domain names of the available replica servers, pings each server,
@@ -165,11 +151,8 @@ class DNSServer():
                 continue
 
             #Craft and send response
-            #Catch any exceptions that the geo locatio module throws and use standard RTT instead
-            try:
-                replicaIP = self.bestReplicaGeo(address)
-            except Exception as e:
-                replicaIP = self.bestReplicaRTT()
+            #replicaIP = self.bestReplicaRTT(request)
+            replicaIP = self.bestReplicaGeo(address)
             self.sendDNSResponse(request, address, replicaIP)
 
 def argumentParser():
@@ -202,10 +185,6 @@ if __name__ == '__main__':
 #3. https://stackoverflow.com/questions/16977588/reading-dns-packets-in-python
 #4. https://geoip2.readthedocs.io/en/latest/
 #5. https://www.youtube.com/watch?v=ccvMfdlArbI
-#6. https://www.section.io/engineering-education/using-geopy-to-calculate-the-distance-between-two-points/
-#7. https://pypi.org/project/geoip2/
-#8. https://stackoverflow.com/questions/50953375/longitude-formatting-scale-for-calculating-distance-with-geopy
-#9. https://geopy.readthedocs.io/en/v1/#geopy.point.Point
 
 
 

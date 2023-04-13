@@ -7,11 +7,13 @@ First, it listens through a UDP port for any DNS requests made to the specified 
 
 If the request is not an A DNS request or is not for the domain passed in at startup (in this case it would be cs5700.example.com), then the request is ignored and the server does not react.
 
-If a valid DNS query was made to the server, then the server will dynamically select one of the http replicas based on overall RTT. The ip of the replica with the lowest RTT to the DNS server is the ip that is returned to the DNS A query. We specifically made our measurements be dependent on RTT in order to get a semi-accurate measurement of network congestion for each of the servers and select the one which in theory will result in the fastest response to the client.
+If a valid DNS query was made to the server, then the server will dynamically select one of the http replicas based on overall RTT. For our implementation of dynamically selecting a replica ip address we devised two methods: (1) using geolite2 to acquire longitude and latitude coordinates in order to choose the closest replica server to the client and (2) lowest RTT from the DNS to the replicas.
 
-We tested utilizing third party APIs for geographical information but did not pursue that as a potential avenue for dynamic selection. We found that the increased overhead and third party reliance led to some situations where the RTT was entirely dependent on this lookup, which we did not feel was appropriate for the project. If we had more time to thoroughly test this dynamic selection, then it definitely would be a path to take in an attempt to optimize the download speed. I'm curious to see how other group implementations stack up to a regular "in vivo" check of which server responds quickest to the initial ping. One of the reasons we also decided against it was the discussion about third party APIs limiting the amount of times it can be utilized in a period of time. Through initial testing of the dns server, this limit was hit on our end and times dropped significantly.
+The purpose of having two is that we were worried that geolite2 can cause issues when put under loads in the thousands of requests. I tried looking up online how many requests in theory should be handled without issues but could not find a difinitive answer. Although there are no limits to requests per second like other libraries, it is mentioned that repeated requests in the range of thousands can sometimes result in either slower times or blocking of IP addresses.
 
-One limitation I can forsee from our implementation is that we are pinging servers from only the CDN server location. These RTT might not be an accurate representation of the network congestivity/architecture of where the client made their request. Although we saw the geoIP dynamic selection to be a possible solution for this, for the reasons we mentioned above we decided not to 
+In an attempt to error-proof this situation, we introduced a try-except that if triggered will use the RTT algorithm instead of the Geo location algorithm. The performance of the geo location is better, but we introduced RTT as a safety net in the event that thorough testing causes issues in the future like the IP of the DNS being blocked from the service because too many requests were being sent.
+
+
 
 # High Level Approach: HTTP Server
 The HTTP Server implementation utilizes a subclass of a basic HTTP handler that responds to GET requests by first fetching the content from the origin cdn server with a GET request. For the milestone, this is a direct GET request without any consideration of caching, which will be added for the final project submission.
@@ -29,7 +31,8 @@ The resources, documentation for http.server and BaseHTTPRequestHandler
 HTTPServer: Ignacio Arruza
 DNSServer: Ignacio Arruza
 Testing DNS and HTTP servers: Ignacio
-DNSServer Dynamic Replica HTTP IP selection: Sukanya Nag
+DNSServer RTT IP selection: Sukanya Nag
+DNSServer Geo location IP selection: Ignacio Arruza
 run/stop/deploy CDN Scripts: Sukanya Nag
 Caching Functionality: Sukanya Nag
 
