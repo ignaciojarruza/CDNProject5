@@ -1,0 +1,30 @@
+#!/bin/bash
+
+while getopts 'p:o:n:u:i:' opts; do
+	case $opts in
+		p)
+		port=$OPTARG;;
+ 		o)
+		origin=$OPTARG;;
+		n)
+		name=$OPTARG;;
+		u)
+		username=$OPTARG;;
+		i)
+		keyfile=$OPTARG;;
+	esac
+done
+
+declare -a replica_servers=("cdn-http1.5700.network" "cdn-http2.5700.network" "cdn-http3.5700.network" "cdn-http4.5700.network" "cdn-http5.5700.network" "cdn-http6.5700.network" "cdn-http7.5700.network") 
+
+servers_length=${#replica_servers[@]}
+
+for (( i = 0; i < ${servers_length}; i++ )); 
+do
+	scp -i $keyfile httpserver $username@${replica_servers[$i]}:~/
+	ssh -i $keyfile $username@${replica_servers[$i]} chmod u+x httpserver
+done
+
+dns_server="cdn-dns.5700.network"
+scp -i $keyfile dnsserver $username@$dns_server:~/
+ssh -i $keyfile $username@$dns_server chmod u+x dnsserver

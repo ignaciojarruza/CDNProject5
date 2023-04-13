@@ -21,6 +21,7 @@ class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
         file = requests.get(url)
 
         #/grading/beacon check
+        #TODO: make get request to origin server and see result, might just return that instead of custom 204 response
         if path == '/grading/beacon':
             self.send_response(204)
             self.end_headers()
