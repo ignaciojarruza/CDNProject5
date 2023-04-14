@@ -23,13 +23,8 @@ class Cache:
     """
 
     def __init__(self):
-        """
-        Initializes a new Cache instance by setting up the SQLite database.
-        """
 
-        self.connection = sqlite3.connect("cache.db", check_same_thread=False)
-        self.handler = self.connection.cursor()
-        self.handler.execute('''CREATE TABLE IF NOT EXISTS CACHE (Path TEXT, Content BLOB, Frequency INT, Size INT);''')
+        self.cache = {}
 
 
     def hit(self, data):
@@ -56,28 +51,12 @@ class Cache:
         Returns:
             bytes: The cached content, or None if not found.
         """
-
-        self.handler.execute("SELECT * FROM Cache WHERE Path = :Path", {"Path": path})
-        data = self.handler.fetchone()
-        if self.hit(data):
-            content = zlib.decompress(data[1])
-            frequency = data[2]
-            frequency += 1
-            self.handler.execute("UPDATE Cache SET Frequency =:Frequency WHERE Path=:Path",
-                                 {"Frequency": frequency, "Path": path})
-            self.connection.commit()
+        if path in self.cache:
+            content = zlib.decompress(self.cache[path]['content'])
+            self.cache[path]['frequency'] += 1
             return content
-
         return None
 
-
-    def close(self):
-        """
-        Closes the SQLite connection and commits any changes.
-        """
-
-        self.connection.commit()
-        self.connection.close()
 
 
     def get_cache_size(self):
@@ -88,9 +67,7 @@ class Cache:
             int: The size of the cache in bytes.
         """
 
-        cache_stat = os.stat('cache.db')
-        cache_size = cache_stat.st_size
-        return cache_size
+        return sum(item['size'] for item in self.cache.values())
 
 
     def over_size(self, data):
@@ -120,11 +97,9 @@ class Cache:
         size = sys.getsizeof(compressed_data)
         frequency = 1
         if self.over_size(compressed_data):
-            self.evict(sys.getsizeof(compressed_data))
+            self.evict(size)
 
-        self.handler.execute("INSERT INTO Cache(Path,Content,Frequency,Size)VALUES(?,?,?,?)",
-                             (path, compressed_data, frequency, size))
-        self.connection.commit()
+        self.cache[path] = {'content': compressed_data, 'frequency': frequency, 'size': size}
 
     def evict(self, file_size):
         """
@@ -136,10 +111,8 @@ class Cache:
 
         cache_size = self.get_cache_size()
         while cache_size + file_size >= MB_20:
-            self.handler.execute(
-                "DELETE FROM Cache WHERE Path = (SELECT Path FROM Cache WHERE Frequency = (SELECT MIN(Frequency) FROM Cache))")
-            self.connection.commit()
-            self.handler.execute("VACUUM")
+            least_frequent_path = min(self.cache, key=lambda p: self.cache[p]['frequency'])
+            del self.cache[least_frequent_path]
             cache_size = self.get_cache_size()
 
 
