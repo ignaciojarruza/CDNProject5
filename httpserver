@@ -5,10 +5,100 @@ import socketserver
 import http.server
 from http.server import BaseHTTPRequestHandler
 import requests
+import sqlite3
+import zlib
+import os
+import sys
+
+MB_20 = (17 * 1024 * 1024)
+
+class Cache:
+    """
+    Cache class for managing cached content.
+    
+    Attributes:
+        cache: a dictionary that holds cached http requests in the form <file path, (file, frequency)>.
+    """
+
+    def __init__(self):
+        """
+        Initializes a new Cache instance by setting up an empty dictionary.
+        """
+        self.cache = {}
+
+    def hit(self, data):
+        """
+        Checks if the given data is a cache hit.
+        Args:
+            data: The data to check for a cache hit.
+        Returns:
+            bool: True if the data is a cache hit, False otherwise.
+        """
+        return data in self.cache
+
+
+    def get_data(self, path):
+        """
+        Retrieves the cached content for the given path, if available.
+        Args:
+            path (str): The path for which to retrieve cached content.
+        Returns:
+            bytes: The cached content, or None if not found.
+        """
+        if self.hit(path):
+            return self.cache[path][0]
+        return None
+
+    def get_cache_size(self):
+        """
+        Retrieves the current size of the cache.
+        Returns:
+            int: The size of the cache in bytes.
+        """
+        return sys.getsizeof(self.cache)
+
+
+    def over_size(self, data):
+        """
+        Checks if adding the given data to the cache would exceed the maximum cache size.
+        Args:
+            data: The data to check.
+        Returns:
+            bool: True if adding the data would exceed the maximum cache size, False otherwise.
+        """
+        return self.get_cache_size() + sys.getsizeof(data) > MB_20
+
+    def insert_data(self, path, data):
+        """
+        Inserts the given data into the cache.
+        Args:
+            path (str): The path associated with the data.
+            data (bytes): The data to insert into the cache.
+        """
+        size = sys.getsizeof(data)
+        frequency = 1
+        if self.over_size(data):
+            self.evict()
+
+        self.cache[path] = (data, frequency)
+
+    def evict(self, path):
+        """
+        Evicts the 3 least frequently accessed items from the cache.
+        Args:
+        """
+        cache_size = self.get_cache_size()
+        sorted = sorted(self.cache, key=lambda x: x[1])
+        for path in sorted[:3]:
+            self.cache.remove(path)
+        
 
 class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
     """HTTPReplicaRequestHandler subclasses BaseHTTPRequestHandler to serve
     resources that are on the desired origin. Sends a 404 if origin is not Project 5 orgin cdn."""
+    cache = None
+    origin = None
+    
     def do_GET(self):
         """
         Overrides GET requests to add origin cdn functionality.
@@ -19,17 +109,24 @@ class HTTPReplicaRequestHandler(BaseHTTPRequestHandler):
             self.send_response(204)
             self.end_headers()
             return
-        
-        #Send GET Request to origin
-        url = 'http://{origin}:8080'.format(origin=self.origin)
-        url += path
-        file = requests.get(url)
 
-        #Send Client Response; Caching Functionality needs to be added after milestone
-        self.send_response(file.status_code)
-        #self.send_header(file.headers)
+        # Check if content is in the cache
+        html = self.cache.get_data(self.path)
+        status_code = 200
+        if html is None:
+            #Send GET Request to origin
+            url = 'http://{origin}'.format(origin=self.origin)
+            url += path
+            file = requests.get(url)
+            status_code = 200
+            html = file.content
+            self.cache.insert_data(self.path, html)
+
+        #Send Client Response
+        self.send_response(status_code)
+        self.send_header("Content-type", "text/html")
         self.end_headers()
-        self.wfile.write(file.content)
+        self.wfile.write(html)
     
 def argumentParser():
     """
@@ -38,7 +135,6 @@ def argumentParser():
         -p PORT: port to bind http server
         -o ORIGIN: CDN origin where content is fetched
     """
-    #TODO: add http/https check
     parser = argparse.ArgumentParser(description="Project 5 Replica Server Implementation...")
     parser.add_argument('-p', '--port', type=int, help='port HTTP server will bind to')
     parser.add_argument('-o', '--origin', help='origin server of CDN')
@@ -50,8 +146,17 @@ if __name__ == '__main__':
     PORT = args.port
     ORIGIN = args.origin
 
+    if 'http://' in ORIGIN:
+        print("Origin must not contain http://")
+        exit
+    originSplit = ORIGIN.split(":")
+    if originSplit[-1].isdigit() == False:
+        print("Must inlcude port number at end of origin.")
+        exit()
+
     Handler = HTTPReplicaRequestHandler
     Handler.origin = ORIGIN
+    Handler.cache = Cache()
     
     with socketserver.TCPServer(("", PORT), Handler) as httpd:
         httpd.serve_forever()
@@ -60,3 +165,4 @@ if __name__ == '__main__':
 #Resources
 #1. https://docs.python.org/3/library/http.server.html#http.server.BaseHTTPRequestHandler
 #2. https://docs.python.org/3/library/http.server.html
+#3. https://nedbatchelder.com/blog/202002/sysgetsizeof_is_not_what_you_want.html

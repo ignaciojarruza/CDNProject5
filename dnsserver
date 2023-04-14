@@ -21,6 +21,7 @@ class DNSServer():
         self.hostIP = socket.gethostbyname(socket.gethostname())
         self.socket.bind((self.hostIP, port))
         self.closestReplica = {}
+        self.clientHistory = {}
 
         #Save Replica IPs and long/lat values for faster lookups
         self.replicaIPs = {}
@@ -73,6 +74,7 @@ class DNSServer():
         '''
         #Check if ip is already learned
         if address[0] in self.closestReplica:
+            print("address learned, geolite2 not called")
             return self.closestReplica[address[0]]
 
         #Find longitude and latitude for client IP
